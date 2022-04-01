@@ -178,12 +178,9 @@ class Paddle_Seg:
 
     def post_process(self, img, res, resize_type=1):
         mask = np.squeeze(res) # 去掉第一维
-        print(mask.shape)
         mask = self.decode_segmap(mask) # 将mask合成为fgb图
-        print(mask.shape)
         mask = self.post_resize(mask, 1)
         img = img / 255 
-        print("img:", img.shape)
 
         img = cv2.addWeighted(img, 1, mask, 0.8, 0, dtype = cv2.CV_32F) # 原图掩膜
         return img, mask 
