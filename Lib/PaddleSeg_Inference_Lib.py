@@ -224,12 +224,11 @@ if __name__ == "__main__":
                             gpu_memory=gpu_memory, use_tensorrt=use_tensorrt, 
                             precision_mode=precision_mode, label_list=label_list)
     
-    img = cv2.imread("49.jpg")
+    img = cv2.imread("../pic/49.jpg")
     paddle_seg.init(img.shape[1], img.shape[0]) 
     
     res = paddle_seg.infer(img)
     
-    # paddle_seg.save_img(res, img)
     img, mask  = paddle_seg.post_process(img, res)
 
     paddle_seg.visualize(img, mask)

@@ -5,7 +5,7 @@ import os
 
 init_img_id = 0
 n = 0
-dataset_dir = "../data_seg"
+dataset_dir = "../data_det"
 
 def check_img_dir(dataset_dir):
     global img_id
@@ -34,16 +34,17 @@ def save_img(img, save_dir):
 
 if __name__ == '__main__': 
 
-    cap = UsbCamera()
+    cap = Realsense()
     
     check_img_dir(dataset_dir)
     while(1):
         start = time.time()
-        image = cap.read()
+        cap.wait_frames()
+        image = cap.rgb_image()
 
         save_img(image, dataset_dir)
 
-        cv2.imshow("capture", image)
+        cv2.imshow("realsense", image)
         
         k=cv2.waitKey(1)
         if k==ord("q"):

@@ -1,11 +1,3 @@
-'''
-Descripttion: 
-version: 
-Author: Irving.Gao
-Date: 2022-01-11 16:44:53
-LastEditors: Irving.Gao
-LastEditTime: 2022-01-11 16:47:09
-'''
 import cv2
 from Lib.Camera_Lib import *
 import time
@@ -13,7 +5,7 @@ import os
 
 init_img_id = 0
 n = 0
-dataset_dir = "../data_det"
+dataset_dir = "../data_seg"
 
 def check_img_dir(dataset_dir):
     global img_id
@@ -42,17 +34,16 @@ def save_img(img, save_dir):
 
 if __name__ == '__main__': 
 
-    cap = Realsense()
+    cap = cv2.VideoCapture(0)
     
     check_img_dir(dataset_dir)
     while(1):
         start = time.time()
-        cap.wait_frames()
-        image = cap.rgb_image()
+        _, image = cap.read()
 
         save_img(image, dataset_dir)
 
-        cv2.imshow("realsense", image)
+        cv2.imshow("capture", image)
         
         k=cv2.waitKey(1)
         if k==ord("q"):

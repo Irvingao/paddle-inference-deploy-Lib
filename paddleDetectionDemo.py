@@ -1,11 +1,3 @@
-'''
-Descripttion: 
-version: 
-Author: Irving.Gao
-Date: 2022-01-04 22:44:42
-LastEditors: Irving.Gao
-LastEditTime: 2022-01-12 16:54:38
-'''
 import cv2
 import numpy as np
 import time
