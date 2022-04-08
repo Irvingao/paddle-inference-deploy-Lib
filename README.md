@@ -2,7 +2,7 @@
 ![support os](https://img.shields.io/badge/os-linux%2C%20win%2C%20mac-yellow.svg)
 
 # **paddle-inference-deploy-Lib**
-🔥 Best Deployment Tools for [paddleDetection](https://github.com/PaddlePaddle/PaddleDetection) and [paddleSeg](https://github.com/PaddlePaddle/PaddleSeg) by paddle inference. 
+🔥 Best Deployment Tools for [paddleDetection](https://github.com/PaddlePaddle/PaddleDetection) and [paddleSeg](https://github.com/PaddlePaddle/PaddleSeg). 
 
 
 This repository is a **universal deployment paradigm** of paddleDetection and paddleSeg. All the models export by these two Toolkits were compatible in `paddle-inference-deploy-Lib`.
@@ -33,16 +33,16 @@ pip install paddleseg
 
 ## **Usage**
 
-There are two local models in `./model`. You can run it directly.
+There are two local example models in `./model`. You can run it directly.
 
 ### (1) Run PaddleSeg Deployment
 ```bash
-python python paddleSegDemo.py 
+python paddleSegDemo.py 
 ```
 
 ### (2) Run PaddleDet Deployment
 ```bash
-python python paddleDetDemo.py 
+python paddleDetDemo.py 
 ```
 
 ## <img src="https://user-images.githubusercontent.com/48054808/157827140-03ffaff7-7d14-48b4-9440-c38986ea378c.png" width="20"/> **Overview of Kit Compatibale Structures**
