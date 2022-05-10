@@ -11,7 +11,7 @@ from paddle.inference import create_predictor
 class Paddle_Detection:
     def __init__(self, model_folder_dir, use_model_img_size=True, 
                  infer_img_size=224, use_gpu = False, gpu_memory = 500, 
-                 use_tensorrt = False, precision="fp32", 
+                 use_tensorrt = False, precision="fp32", batch_size=1,
                  filter_mode = False, filter_range=10, filter_rate=5):
         self.model_folder_dir = model_folder_dir
         self.use_model_img_size = use_model_img_size
@@ -20,6 +20,7 @@ class Paddle_Detection:
         self.gpu_memory = gpu_memory               # GPU的显存，默认500
         self.use_tensorrt = use_tensorrt           # 是否使用TensorRT，默认False
         self.precision = precision                 # TensorRT的precision_mode（"int8"、"fp16"、"float32"）
+        self.batch_size = batch_size
         self.filter_mode = filter_mode             # 滤波模式，通过多帧检测防止误识别，默认关闭
         self.filter_range = filter_range           # 滤波器的范围，默认10        eg: 10：在10帧的范围内滤波
         self.filter_rate = filter_rate             # 有filter_rate帧预测出物体则认为是真，默认5   eg：5：有5帧都存在则为真
@@ -57,6 +58,9 @@ class Paddle_Detection:
             target_size = self.infer_img_size
         self.mean, self.std, self.im_scale, \
         self.scale_factor, self.infer_im_shape = self.img_config_init(img, target_size, mean, std)
+        # 初始化batch infer的infer_im_shape
+        self.infer_im_shape = np.concatenate([self.infer_im_shape for i in range(self.batch_size)],0)
+        
         # 滤波模式：初始化检测滤波器
         if self.filter_mode:
             self.object_filter_list = []
@@ -149,8 +153,10 @@ class Paddle_Detection:
         print("Use GPU is: {}".format(config.use_gpu())) # True
         print("GPU device id is: {}".format(config.gpu_device_id())) # 0
         print("Init mem size is: {}".format(config.memory_pool_init_size_mb())) # 100
-        print("Use TensorRT: {}".format(self.use_tensorrt)) # 0
-        print("Precision mode: {}".format(precision_map[self.precision])) # 0
+        print("Batch size is: {}".format(self.batch_size))
+        if self.use_tensorrt == True:
+            print("Use TensorRT: {}".format(self.use_tensorrt)) # 0
+            print("Precision mode: {}".format(precision_map[self.precision])) # 0
         print("----------------------------------------------") 
         # 可以设置开启IR优化、开启内存优化
         config.switch_ir_optim()
@@ -183,6 +189,14 @@ class Paddle_Detection:
         result = self.predict(self.predictor, [self.infer_im_shape, data, self.scale_factor])
         return result
     
+    def batch_infer(self, img_list):
+        data_list = []
+        for img in img_list:
+            data_list.append(self.preprocess(img))
+        data = np.concatenate(data_list,0)
+        result = self.predict(self.predictor, [self.infer_im_shape, data, self.scale_factor])
+        return result
+
     # ——————————————————后处理函数————————————————— #
     def draw_bbox_image(self, frame, result, threshold=0.5):
         if result != []:
@@ -202,7 +216,7 @@ class Paddle_Detection:
         return frame
 
     # ————————————————————————滤波器————————————————————————　#
-    def object_filter(self, res, threshold=0.5):
+    def object_filter(self, result, threshold=0.5):
         object_list = []
         label_id = self.label_list[num_id]
         # 全部帧加一个0

@@ -1,7 +1,8 @@
+
 import cv2
+from cv2 import INTER_NEAREST
 import numpy as np
 import yaml
-import random
 import os
 import codecs
 import matplotlib.pyplot as plt
@@ -53,11 +54,9 @@ class Paddle_Seg:
         self.gpu_memory = gpu_memory               # GPU的显存，Default: 500
         self.use_tensorrt = use_tensorrt           # 是否使用TensorRT，Default: False
         self.precision = precision_mode            # TensorRT的precision_mode, Default: "fp16"、"fp32"、"int8"
-        self.label_list =  ['road', 'sidewalk', 'building', 'wall', 'fence', \
-                            'pole', 'traffic_light', 'traffic_sign', 'vegetation', 'terrain', \
-                            'sky', 'person', 'rider', 'car', 'truck', 'bus', 'train', \
-                            'motorcycle', 'bicycle'] if label_list == None else label_list # 类别信息，Default: Cityscapes 21 classes
-    
+        self.label_list =  ["blind_road","sidewalk","other"] if label_list == None else label_list # 类别信息，Default: Cityscapes 21 classes
+        self.already_init=False
+        
     def init(self,camera_width=640,camera_height=480):
         img = np.zeros(shape=(int(camera_height), int(camera_width),3),dtype="float32")
         self.enlarge_scale, self.narrow_scalse = self.img_config_init(img, self.infer_img_size)
@@ -65,11 +64,10 @@ class Paddle_Seg:
         self.cfg = DeployYmlConfig(self.model_folder_dir)
         # 初始化预测模型
         self.predictor = self.predict_config() 
+        self.already_init = True
 
     def img_config_init(self, img, target_size):
         self.im_shape = img.shape
-        im_size_min = np.min(self.im_shape[0:2])
-        im_size_max = np.max(self.im_shape[0:2])
         narrow_scalse_x = float(target_size) / float(self.im_shape[1])
         narrow_scalse_y = float(target_size) / float(self.im_shape[0])
         enlarge_scale_x = float(self.im_shape[1]) / float(target_size)
@@ -104,7 +102,7 @@ class Paddle_Seg:
                                             use_static=use_static, use_calib_mode=use_calib_mode)
                 min_input_shape = {"x": [1, 3, 10, 10]}
                 max_input_shape = {"x": [1, 3, 1500, 1500]}
-                opt_input_shape = {"x": [1, 3, 256, 256]}
+                opt_input_shape = {"x": [1, 3, 320, 320]}
                 config.set_trt_dynamic_shape_info(min_input_shape, max_input_shape, opt_input_shape)
         print("----------------------------------------------") 
         print("                 RUNNING CONFIG                 ") 
@@ -127,8 +125,8 @@ class Paddle_Seg:
 
     def resize(self, img):
         if not isinstance(img, np.ndarray):
-            raise TypeError('image type is not numpy.')
-        img = cv2.resize(img, None, None, fx=self.narrow_scalse[0], fy=self.narrow_scalse[1])
+            raise TypeError('image type is not numpy.')               
+        img = cv2.resize(img, (self.infer_img_size, self.infer_img_size))    
         return img
 
     def preprocess(self, img):
@@ -155,34 +153,32 @@ class Paddle_Seg:
 
     def post_resize(self, img, resize_type):
         if resize_type == 1: # 1:resize到原图大小
-            img = cv2.resize(img, None, None, fx=self.enlarge_scale[0], fy=self.enlarge_scale[1])
-            # img = cv2.resize(img, (self.im_shape[1], self.im_shape[0]))
+            img = cv2.resize(img, None, None, fx=self.enlarge_scale[0], fy=self.enlarge_scale[1],interpolation=INTER_NEAREST)
+            #img = cv2.resize(img, (self.infer_img_size, self.infer_img_size),interpolation=INTER_NEAREST)
         elif resize_type == -1: # -1:resize到模型输入大小
-            # img = cv2.resize(img, (self.infer_img_size, self.infer_img_size))
-            img = cv2.resize(img, None, None, fx=self.narrow_scalse[0], fy=self.narrow_scalse[1])
+            img = cv2.resize(img, (self.infer_img_size, self.infer_img_size))
         return img
 
     def decode_segmap(self, mask):
-        r = mask.copy()
-        g = mask.copy()
         b = mask.copy()
+        g = mask.copy()
+        r = mask.copy()
         for idx, label in enumerate(self.label_list): # 选择颜色
-            r[mask == idx] = label_colors[label][0]
-            g[mask == idx] = label_colors[label][1]
-            b[mask == idx] = label_colors[label][2]
-        rgb = np.zeros((mask.shape[0], mask.shape[1], 3))
-        rgb[:, :, 0] = r / 255.0
-        rgb[:, :, 1] = g / 255.0
-        rgb[:, :, 2] = b / 255.0
-        return rgb
+            b[mask == (idx+1)] = label_colors[label][0]
+            g[mask == (idx+1)] = label_colors[label][1]
+            r[mask == (idx+1)] = label_colors[label][2]
+        bgr = np.zeros((mask.shape[0], mask.shape[1], 3))
+        bgr[:, :, 0] = b / 255.0
+        bgr[:, :, 1] = g / 255.0
+        bgr[:, :, 2] = r / 255.0
+        return bgr
 
-    def post_process(self, img, res, resize_type=1):
+    def post_process(self, img, res):
         mask = np.squeeze(res) # 去掉第一维
         mask = self.decode_segmap(mask) # 将mask合成为fgb图
-        mask = self.post_resize(mask, 1)
-        img = img / 255 
-
-        img = cv2.addWeighted(img, 1, mask, 0.8, 0, dtype = cv2.CV_32F) # 原图掩膜
+        mask = self.post_resize(mask, 1)       #和原图同样大小 
+        img = img / 255
+        img = cv2.addWeighted(img, 0.5, mask, 0.5, 0, dtype = cv2.CV_32F) # 原图掩膜
         return img, mask 
 
     def visualize(self, img, mask):
@@ -199,49 +195,7 @@ class Paddle_Seg:
 
 
 label_colors = {
-        'road': np.array([128, 64, 128]), 'sidewalk': np.array([244, 35, 232]), 'building': np.array([70, 70, 70]), 
-        'wall': np.array([244, 35, 232]), 'fence': np.array([128, 64, 128]), 'pole': np.array([244, 35, 232]),
-        'traffic_light': np.array([128, 64, 128]), 'traffic_sign': np.array([244, 35, 232]), 'vegetation': np.array([128, 64, 128]), 
-        'terrain': np.array([244, 35, 232]), 'sky': np.array([128, 64, 128]), 'person': np.array([244, 35, 232]),
-        'rider': np.array([128, 64, 128]), 'car': np.array([244, 35, 232]), 'truck': np.array([128, 64, 128]), 
-        'bus': np.array([244, 35, 232]), 'train': np.array([128, 64, 128]), 'motorcycle': np.array([244, 35, 232]),
-        'bicycle': np.array([128, 64, 128])
+        'blind_road': np.array([0,255,255]),
+        'sidewalk': np.array([255,0,0]),
+        'other': np.array([0,0,255]),
     }
-
-if __name__ == "__main__":
-    ###################
-    model_folder_dir="../model/hardnet_test"
-    infer_img_size=500
-    use_gpu=True
-    gpu_memory=500
-    use_tensorrt=False
-    precision_mode="fp16"
-    label_list = ["sidewalk"]
-
-    ###################
-    paddle_seg = Paddle_Seg(model_folder_dir=model_folder_dir, 
-                            infer_img_size=infer_img_size, use_gpu=use_gpu, 
-                            gpu_memory=gpu_memory, use_tensorrt=use_tensorrt, 
-                            precision_mode=precision_mode, label_list=label_list)
-    
-    img = cv2.imread("../pic/49.jpg")
-    paddle_seg.init(img.shape[1], img.shape[0]) 
-    
-    res = paddle_seg.infer(img)
-    
-    img, mask  = paddle_seg.post_process(img, res)
-
-    paddle_seg.visualize(img, mask)
-
-    cv2.imshow("img", img)
-    cv2.imshow("mask", mask)
-
-    cv2.waitKey(0)
-
-
-    
-    
-
-    
-    
-    
